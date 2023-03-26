@@ -53,8 +53,6 @@ app.message(async ({ message, context, say }) => {
     return
   }
 
-  console.log(`Message received from user ${message.user}: ${message.text}`)
-
   if (message.subtype === 'bot_message' || message.user === context.botUserId) {
     return
   }
@@ -62,6 +60,8 @@ app.message(async ({ message, context, say }) => {
   if (mentionPattern.test(message.text)) {
     return
   }
+
+  console.log(`Message received from user ${message.user}: ${message.text}`)
 
   try {
     const result = await webClient.conversations.history({
@@ -76,6 +76,7 @@ app.message(async ({ message, context, say }) => {
         content: msg.text,
       })
     })
+    await say('ちょっと調べてみます...')
     const completion = await openai.createChatCompletion({
       model: 'gpt-3.5-turbo',
       messages: messages,
@@ -105,6 +106,7 @@ app.event('app_mention', async ({ event, context, say }) => {
         content: msg.text,
       })
     })
+    await say('ちょっと調べてみます...')
     const completion = await openai.createChatCompletion({
       model: 'gpt-3.5-turbo',
       messages: messages,
