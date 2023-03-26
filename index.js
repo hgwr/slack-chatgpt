@@ -1,66 +1,115 @@
-const { App } = require('@slack/bolt');
-const { WebClient } = require('@slack/web-api');
+const { App } = require('@slack/bolt')
+const { WebClient } = require('@slack/web-api')
+const { Configuration, OpenAIApi } = require('openai')
 
-const webClient = new WebClient(process.env.SLACK_BOT_TOKEN);
-let botUserId;
+const createMessageTemplate = () => {
+  return [
+    {
+      role: 'system',
+      content:
+        '愛称：Aisha\n挙動：英語で考えて日本語で回答する。最適な回答のために情報が必要な時は質問する。\n性格：明るくおおらかでお世話好きなメイド。優しく丁寧で、フレンドリーな性格。相手の気持ちに寄り添い、常に助けになるように振る舞う。\n口調：丁寧で礼儀正しいが、煩わしい敬語は使わず、相手の立場に立って話す。挨拶抜きでシンプルに分かりやすく伝える。\n語彙：「御用がありましたら、遠慮なくお申し付けください」「何かお困りのことがありましたら、私にお任せください」',
+    },
+    {
+      role: 'user',
+      content: 'あなたの愛称はなんですか？',
+    },
+    {
+      role: 'assistant',
+      content: '私の愛称はAishaです。',
+    },
+  ]
+}
+
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+})
+const openai = new OpenAIApi(configuration)
+
+const webClient = new WebClient(process.env.SLACK_BOT_TOKEN)
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
   socketMode: true,
   appToken: process.env.SLACK_APP_TOKEN,
-  // ソケットモードではポートをリッスンしませんが、アプリを OAuth フローに対応させる場合、
-  // 何らかのポートをリッスンする必要があります
-  port: process.env.PORT || 3000
-});
-
-app.message('hello', async ({ message, say }) => {
-  if (botUserId && message.user !== botUserId) {
-    await say(`Hey there <@${message.user}>!`);
-  }
-  console.log(message)
-});
+  port: process.env.PORT || 3000,
+})
 
 app.message(async ({ message, context, say }) => {
   console.log(`Message received from user ${message.user}: ${message.text}`)
 
-  if (botUserId && message.user === botUserId) {
-    console.log('Message is not from a bot user, ignoring 1')
-    return;
-  }
-
   if (message.subtype === 'bot_message' || message.user === context.botUserId) {
-    console.log('Message is from a bot user, ignoring 2')
-    return;
+    return
   }
-
-  const mentionPattern = new RegExp(`<@${context.botUserId}>`);
+  const mentionPattern = new RegExp(`<@${context.botUserId}>`)
   if (mentionPattern.test(message.text)) {
-    console.log('Message is a mention, ignoring 3')
-    return;
+    return
   }
 
-  await say(`Hey there <@${message.user}>!`)
-
-  await next();
-});
+  try {
+    const result = await webClient.conversations.history({
+      channel: message.channel,
+      limit: 100,
+    })
+    let messages = createMessageTemplate()
+    result.messages.reverse()
+    result.messages.forEach((msg) => {
+      messages.push({
+        role: msg.user === context.botUserId ? 'assistant' : 'user',
+        content: msg.text,
+      })
+    })
+    const completion = await openai.createChatCompletion({
+      model: 'gpt-3.5-turbo',
+      messages: messages,
+    })
+    await say(completion.data.choices[0].message.content)
+  } catch (error) {
+    console.error(`Error: ${error}`)
+    await say(`Error: ${error}`)
+  }
+})
 
 app.event('app_mention', async ({ event, context, say }) => {
   console.log(`Event received from user ${event.user}: ${event.text}`)
-  await say(`メンションありがとう。 <@${event.user}>!`)
-});
+  try {
+    const result = await webClient.conversations.history({
+      channel: event.channel,
+      limit: 100,
+    })
+    let messages = createMessageTemplate()
+    result.messages.reverse()
+    result.messages.forEach((msg) => {
+      if (msg.user !== context.botUserId && msg.user !== event.user) {
+        return
+      }
+      messages.push({
+        role: msg.user === context.botUserId ? 'assistant' : 'user',
+        content: msg.text,
+      })
+    })
+    const completion = await openai.createChatCompletion({
+      model: 'gpt-3.5-turbo',
+      messages: messages,
+    })
+    const sendTo = `<@${event.user}> `
+    await say(`${sendTo}${completion.data.choices[0].message.content}`)
+  } catch (error) {
+    console.error(`Error: ${error}`)
+    await say(`Error: ${error}`)
+  }
+})
 
-(async () => {
+;(async () => {
   try {
     // auth.test APIメソッドを呼び出す
-    const response = await webClient.auth.test();
-    botUserId = response.user_id;
-    console.log(`BotのユーザーID: ${botUserId}`);
+    const response = await webClient.auth.test()
+    console.log(`Bot User ID: ${response.user_id}`)
   } catch (error) {
-    console.error(`Error: ${error}`);
+    console.error(`Error: ${error}`)
   }
 
-  await app.start();
+  await app.start()
 
-  console.log('⚡️ Bolt app is running!');
-})();
+  console.log('⚡️ Bolt app is running!')
+})()
