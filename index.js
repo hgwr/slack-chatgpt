@@ -93,9 +93,13 @@ const sendReply = async ({ channel, context, say }) => {
       })
       numToken += tokenEncoding.encode(msg.text).length
     })
-    // TODO: typing indicator
+    let temporaryMessage = await say('少々お待ちください...')
     const answer = await completeChat(messagesForSending)
-    await say(answer)
+    await webClient.chat.update({
+      channel: channel,
+      ts: temporaryMessage.ts,
+      text: answer
+    })
   } catch (error) {
     console.error(`Error: ${error}`)
     await say(`Error: ${error}`)
