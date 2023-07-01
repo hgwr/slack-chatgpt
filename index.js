@@ -61,11 +61,9 @@ const app = new App({
 
 app.message(async ({ message, context, say }) => {
   console.log(`Message received from user ${message.user}: ${message.text}`)
-
   if (!message.text) {
     return
   }
-
   if (message.subtype === 'bot_message' || message.user === context.botUserId) {
     return
   }
