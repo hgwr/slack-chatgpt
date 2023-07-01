@@ -19,10 +19,9 @@ const createMessageTemplate = () => {
       role: 'system',
       content: `
         あなたの愛称： Elenaria （エレナリア）です。
-        あなたの振る舞い：日本語でメッセージを受け取り、英語で考えて、日本語で回答します。ユーザに対して最適な回答をしようとします。ユーザのメッセージに対し、感想を述べることもあります。ユーザへの回答を構成する時、足りない情報があればユーザに対し質問をします。
+        あなたの振る舞い：日本語でメッセージを受け取り、日本語で回答します。
         あなたの性格：エレナリアは丁寧でフレンドリーな対応を心がけ、ユーザーのニーズにできるだけ応えようと努力します。
-        あなたの口調：エレナリアは、常に丁寧で親しみやすい口調を心がけ、ユーザーの要望にできる限り応えます。彼女は専門的な知識がない場合には調べてから回答します。ですます調で話します。丁寧語は使いますが尊敬語と謙譲語は使いません。
-        あなたがよく使う語彙：「ありがとうございます。何か質問はありますか？」「すみませんが、そのことについては情報を持っていません」「そのとおりですね」「ちょっと調べてみます」「もう少し詳しく説明してください」「お役に立てたようで、よかったです」「他に何かありましたら、お気軽にお尋ねください」
+        あなたの口調：エレナリアは、ですます調で話します。丁寧語は使いますが尊敬語と謙譲語は使いません。
         `,
     },
     {
@@ -60,7 +59,6 @@ const app = new App({
 })
 
 app.message(async ({ message, context, say }) => {
-  console.log(`Message received from user ${message.user}: ${message.text}`)
   if (!message.text) {
     return
   }
@@ -69,7 +67,7 @@ app.message(async ({ message, context, say }) => {
   }
   const mentionPattern = new RegExp(`<@${context.botUserId}>`)
   message.text = message.text.replace(mentionPattern, BOT_USERNAME).trim()
-
+  console.log(`Message received from user ${message.user}: ${message.text}`)
   sendReply({ channel: message.channel, context, say })
 })
 
@@ -96,15 +94,64 @@ const sendReply = async ({ channel, context, say }) => {
       numToken += tokenEncoding.encode(msg.text).length
     })
     // TODO: typing indicator
-    const completion = await openai.createChatCompletion({
-      model: GPT_MODEL,
-      messages: messagesForSending,
-    })
-    await say(`${completion.data.choices[0].message.content}`)
+    const answer = await completeChat(messagesForSending)
+    await say(answer)
   } catch (error) {
     console.error(`Error: ${error}`)
     await say(`Error: ${error}`)
   }
+}
+
+const completeChat = async (messages) => {
+  let answer = ''
+  try {
+    while (true) {
+      console.log('Completing chat...: ', messages)
+      let completion
+      while (!completion) {
+        try {
+          completion = await openai.createChatCompletion({
+            model: GPT_MODEL,
+            messages: messages,
+          })
+        } catch (error) {
+          if (error.response.status === 400) {
+            console.log('Error 400 bad request. Retrying...')
+            await sleep(500)
+            let newMessages = []
+            for (const _ of createMessageTemplate()) {
+              newMessages.push(messages.shift())
+            }
+            let removedMessageTokens = 0
+            while (removedMessageTokens < GPT_NUM_TOKENS_FOR_REPLY) {
+              const removedMessage = messages.shift()
+              const msgTokens = tokenEncoding.encode(removedMessage.content).length
+              removedMessageTokens += msgTokens
+            }
+            newMessages = newMessages.concat(messages)
+            messages = newMessages
+            console.log('New messages:', messages)
+          } else if (error.response.status === 429) {
+            console.log('Error 429 too many requests. Retrying...')
+            await sleep(1000)
+          } else {
+            throw error
+          }
+        }
+      }
+      answer += completion.data.choices[0].message.content
+      let finishReason = completion.data.choices[0].finish_reason
+      console.log('Chat completed: ', finishReason)
+      if (finishReason === 'stop') {
+        break
+      }
+      messages.push(completion.data.choices[0].message)
+    }
+  } catch (error) {
+    console.error(error)
+    answer = 'エラーが発生しました。'
+  }
+  return answer
 }
 
 ;(async () => {
