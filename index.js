@@ -59,6 +59,8 @@ const app = new App({
 })
 
 app.message(async ({ message, context, say }) => {
+  console.log(`Message received from user ${message.user}: ${message.text}`)
+
   if (!message.text) {
     return
   }
@@ -70,8 +72,6 @@ app.message(async ({ message, context, say }) => {
   if (mentionPattern.test(message.text)) {
     return
   }
-
-  console.log(`Message received from user ${message.user}: ${message.text}`)
 
   try {
     const result = await webClient.conversations.history({
