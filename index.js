@@ -4,6 +4,7 @@ const GPT_MODEL = 'gpt-3.5-turbo-16k'
 const GPT_MAX_TOKENS = 4000 * 4
 const GPT_NUM_TOKENS_FOR_REPLY = 1000
 const GPT_NUM_TOKENS_FOR_PROMPT = GPT_MAX_TOKENS - GPT_NUM_TOKENS_FOR_REPLY
+const BOT_USERNAME = 'Elenaria'
 
 const { App } = require('@slack/bolt')
 const { WebClient } = require('@slack/web-api')
@@ -69,48 +70,20 @@ app.message(async ({ message, context, say }) => {
     return
   }
   const mentionPattern = new RegExp(`<@${context.botUserId}>`)
-  if (mentionPattern.test(message.text)) {
-    return
-  }
+  message.text = message.text.replace(mentionPattern, BOT_USERNAME).trim()
 
-  try {
-    const result = await webClient.conversations.history({
-      channel: message.channel,
-      limit: HISTORY_SIZE,
-    })
-    let messages = createMessageTemplate()
-    result.messages.reverse()
-    result.messages.forEach((msg) => {
-      messages.push({
-        role: msg.user === context.botUserId ? 'assistant' : 'user',
-        content: msg.text,
-      })
-    })
-    // TODO: typing indicator
-    const completion = await openai.createChatCompletion({
-      model: GPT_MODEL,
-      messages: messages,
-    })
-    await say(completion.data.choices[0].message.content)
-  } catch (error) {
-    console.error(`Error: ${error}`)
-    await say(`Error: ${error}`)
-  }
+  sendReply({ channel: message.channel, context, say })
 })
 
-app.event('app_mention', async ({ event, context, say }) => {
-  console.log(`Event received from user ${event.user}: ${event.text}`)
+const sendReply = async ({ channel, context, say }) => {
   try {
     const result = await webClient.conversations.history({
-      channel: event.channel,
+      channel: channel,
       limit: HISTORY_SIZE,
     })
     let messages = createMessageTemplate()
     result.messages.reverse()
     result.messages.forEach((msg) => {
-      if (msg.user !== context.botUserId && msg.user !== event.user) {
-        return
-      }
       messages.push({
         role: msg.user === context.botUserId ? 'assistant' : 'user',
         content: msg.text,
@@ -126,7 +99,7 @@ app.event('app_mention', async ({ event, context, say }) => {
     console.error(`Error: ${error}`)
     await say(`Error: ${error}`)
   }
-})
+}
 
 ;(async () => {
   try {
