@@ -1,6 +1,16 @@
+const HISTORY_SIZE = 20
+const GPT_MODEL_FOR_TOKEN = 'gpt-3.5-turbo'
+const GPT_MODEL = 'gpt-3.5-turbo-16k'
+const GPT_MAX_TOKENS = 4000 * 4
+const GPT_NUM_TOKENS_FOR_REPLY = 1000
+const GPT_NUM_TOKENS_FOR_PROMPT = GPT_MAX_TOKENS - GPT_NUM_TOKENS_FOR_REPLY
+
 const { App } = require('@slack/bolt')
 const { WebClient } = require('@slack/web-api')
 const { Configuration, OpenAIApi } = require('openai')
+const { encoding_for_model } = require('@dqbd/tiktoken')
+
+const tokenEncoding = encoding_for_model(GPT_MODEL_FOR_TOKEN)
 
 const createMessageTemplate = () => {
   return [
@@ -66,7 +76,7 @@ app.message(async ({ message, context, say }) => {
   try {
     const result = await webClient.conversations.history({
       channel: message.channel,
-      limit: 100,
+      limit: HISTORY_SIZE,
     })
     let messages = createMessageTemplate()
     result.messages.reverse()
@@ -76,9 +86,9 @@ app.message(async ({ message, context, say }) => {
         content: msg.text,
       })
     })
-    await say('ちょっと調べてみます...')
+    // TODO: typing indicator
     const completion = await openai.createChatCompletion({
-      model: 'gpt-3.5-turbo',
+      model: GPT_MODEL,
       messages: messages,
     })
     await say(completion.data.choices[0].message.content)
@@ -93,7 +103,7 @@ app.event('app_mention', async ({ event, context, say }) => {
   try {
     const result = await webClient.conversations.history({
       channel: event.channel,
-      limit: 100,
+      limit: HISTORY_SIZE,
     })
     let messages = createMessageTemplate()
     result.messages.reverse()
@@ -106,9 +116,9 @@ app.event('app_mention', async ({ event, context, say }) => {
         content: msg.text,
       })
     })
-    await say('ちょっと調べてみます...')
+    // TODO: typing indicator
     const completion = await openai.createChatCompletion({
-      model: 'gpt-3.5-turbo',
+      model: GPT_MODEL,
       messages: messages,
     })
     await say(`${completion.data.choices[0].message.content}`)
@@ -117,6 +127,7 @@ app.event('app_mention', async ({ event, context, say }) => {
     await say(`Error: ${error}`)
   }
 })
+
 ;(async () => {
   try {
     // auth.test APIメソッドを呼び出す
