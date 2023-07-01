@@ -1,0 +1,4 @@
+export SLACK_SIGNING_SECRET=
+export SLACK_BOT_TOKEN=
+export SLACK_APP_TOKEN=
+export OPENAI_API_KEY=
