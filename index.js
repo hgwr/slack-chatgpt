@@ -1,4 +1,4 @@
-const HISTORY_SIZE = 20
+const HISTORY_SIZE = 100
 const GPT_MODEL_FOR_TOKEN = 'gpt-3.5-turbo'
 const GPT_MODEL = 'gpt-3.5-turbo-16k'
 const GPT_MAX_TOKENS = 4000 * 4
@@ -75,22 +75,30 @@ app.message(async ({ message, context, say }) => {
 
 const sendReply = async ({ channel, context, say }) => {
   try {
-    const result = await webClient.conversations.history({
+    const history = await webClient.conversations.history({
       channel: channel,
       limit: HISTORY_SIZE,
     })
-    let messages = createMessageTemplate()
-    result.messages.reverse()
-    result.messages.forEach((msg) => {
-      messages.push({
+    let messagesForSending = createMessageTemplate()
+    let numToken = 0
+    messagesForSending.forEach((msg) => {
+      numToken += tokenEncoding.encode(msg.content).length
+    })
+    history.messages.reverse()
+    history.messages.forEach((msg) => {
+      if (numToken + tokenEncoding.encode(msg.text).length > GPT_NUM_TOKENS_FOR_PROMPT) {
+        return
+      }
+      messagesForSending.push({
         role: msg.user === context.botUserId ? 'assistant' : 'user',
         content: msg.text,
       })
+      numToken += tokenEncoding.encode(msg.text).length
     })
     // TODO: typing indicator
     const completion = await openai.createChatCompletion({
       model: GPT_MODEL,
-      messages: messages,
+      messages: messagesForSending,
     })
     await say(`${completion.data.choices[0].message.content}`)
   } catch (error) {
