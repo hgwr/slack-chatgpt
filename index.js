@@ -67,7 +67,6 @@ app.message(async ({ message, context, say }) => {
   }
   const mentionPattern = new RegExp(`<@${context.botUserId}>`)
   message.text = message.text.replace(mentionPattern, BOT_USERNAME).trim()
-  console.log(`Message received from user ${message.user}: ${message.text}`)
   sendReply({ channel: message.channel, context, say })
 })
 
@@ -110,7 +109,6 @@ const completeChat = async (messages) => {
   let answer = ''
   try {
     while (true) {
-      console.log('Completing chat...: ', messages)
       let completion
       while (!completion) {
         try {
@@ -134,9 +132,11 @@ const completeChat = async (messages) => {
             }
             newMessages = newMessages.concat(messages)
             messages = newMessages
-            console.log('New messages:', messages)
           } else if (error.response.status === 429) {
             console.log('Error 429 too many requests. Retrying...')
+            await sleep(1000)
+          } else if (error.response.status === 503) {
+            console.log('Error 503 service unavailable. Retrying...')
             await sleep(1000)
           } else {
             throw error
