@@ -138,6 +138,9 @@ const completeChat = async (messages) => {
           } else if (error.response.status === 503) {
             console.log('Error 503 service unavailable. Retrying...')
             await sleep(1000)
+          } else if (error.response.status === 502) {
+            console.log('Error 502 bad gateway. Retrying...')
+            await sleep(1000)
           } else {
             throw error
           }
