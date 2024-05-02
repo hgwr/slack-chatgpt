@@ -1,6 +1,6 @@
 const HISTORY_SIZE = 100
 const GPT_MODEL_FOR_TOKEN = 'gpt-3.5-turbo'
-const GPT_MODEL = 'gpt-3.5-turbo-16k'
+const GPT_MODEL = 'gpt-3.5-turbo-0125'
 const GPT_MAX_TOKENS = 4000 * 4
 const GPT_NUM_TOKENS_FOR_REPLY = 1000
 const GPT_NUM_TOKENS_FOR_PROMPT = GPT_MAX_TOKENS - GPT_NUM_TOKENS_FOR_REPLY
